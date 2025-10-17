@@ -9,7 +9,7 @@ Simple chatting program with python.
 ## Layers
 
 - Each layers have own purpose.
-- [[main.py]] include all layers except [[BaseLayer.py]], which base class of all layers.
+- [main.py](/layers/GUILayer.py) include all layers except [BaseLayer.py](/layers/BaseLayer.py), which base class of all layers.
 
 ### Base layer
 
