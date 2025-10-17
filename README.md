@@ -23,6 +23,10 @@ Simple chatting program with python.
 
  - Contains some codes for GUI for selecting device, send massege and displaying chatting log.
 
+## main.py
+
+ - [main.py](main.py) includes import layers python files from [layers](layers/) and run GUI.
+ 
 ## How to use this?
 
 [need to add this part]
