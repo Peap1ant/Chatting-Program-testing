@@ -31,3 +31,11 @@ class BaseLayer:
 
     def recv(self, data: bytes):
         None
+
+    # Setting running status
+
+    def start(self):
+        self.running = True
+
+    def stop(self):
+        self.running = False
