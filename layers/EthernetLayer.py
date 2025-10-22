@@ -24,8 +24,6 @@ class EthernetLayer(BaseLayer):
         return self.lower.send(frame)
 
     def recv(self, data: bytes):
-        print("RX", len(data))
-
         if len(data) < 14:
             return False
         dst = data[0:6]

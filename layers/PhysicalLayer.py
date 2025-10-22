@@ -61,3 +61,4 @@ class PhysicalLayer(BaseLayer):
         if self._t:
             self._t.join(timeout=3)
             self._t = None
+            

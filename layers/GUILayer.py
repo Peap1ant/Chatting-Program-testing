@@ -26,11 +26,6 @@ class GUI:
         self.device_combo.grid(row=0, column=1, sticky='w', padx=6)
         self.device_combo.bind('<<ComboboxSelected>>', self._on_device_change)
 
-        tk.Label(top, text='Name').grid(row=0, column=5, sticky='e', padx=(18,4))
-        self._name_var = tk.StringVar(value='User1')
-        self.name_entry = ttk.Entry(top, textvariable=self._name_var, width=18)
-        self.name_entry.grid(row=0, column=6, sticky='w')
-
         self.refresh_btn = ttk.Button(top, text='Refresh', command=self.refresh_devices)
         self.refresh_btn.grid(row=0, column=2, padx=6)
 
@@ -168,9 +163,3 @@ class GUI:
 
     def run(self):
         self.root.mainloop()
-
-    def get_user_name(self):
-        return self._name_var.get().strip() or "User"
-
-    def set_user_name(self, name: str):
-        self._name_var.set(name)
