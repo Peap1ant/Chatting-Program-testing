@@ -1,10 +1,8 @@
-# ------ Import module(if needs) ------
-
 import tkinter as tk
 from tkinter import ttk, messagebox
-from scapy.all import get_if_list
-
-# ------ Main code ------
+import re
+import winreg
+from scapy.all import get_if_list, get_if_hwaddr
 
 class GUI:
     def __init__(self, title='LAN Chatting Program'):
@@ -12,20 +10,19 @@ class GUI:
         self.root.title(title)
         self.root.geometry('900x520')
         self.root.resizable(False, False)
-
         self._send_cb = None
         self._on_device_change_cb = None
-
         self._device_var = tk.StringVar()
         self._peer_mac_var = tk.StringVar(value='FF:FF:FF:FF:FF:FF')
         self._msg_var = tk.StringVar()
         self._my_mac_var = tk.StringVar(value='')
+        self._display_to_npf = {}
 
         top = tk.Frame(self.root)
         top.pack(side='top', fill='x', padx=12, pady=10)
 
         tk.Label(top, text='Device').grid(row=0, column=0, sticky='w')
-        self.device_combo = ttk.Combobox(top, textvariable=self._device_var, state='readonly', width=40)
+        self.device_combo = ttk.Combobox(top, textvariable=self._device_var, state='readonly', width=42)
         self.device_combo.grid(row=0, column=1, sticky='w', padx=6)
         self.device_combo.bind('<<ComboboxSelected>>', self._on_device_change)
 
@@ -65,17 +62,40 @@ class GUI:
 
         self.refresh_devices()
 
+    def _npf_to_friendly(self, npf_name):
+        m = re.search(r'\{[0-9A-Fa-f\-]{36}\}', npf_name)
+        if not m:
+            return npf_name
+        guid = m.group(0)
+        path = r"SYSTEM\CurrentControlSet\Control\Network\{4d36e972-e325-11ce-bfc1-08002be10318}\\" + guid + r"\Connection"
+        try:
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
+            name, _ = winreg.QueryValueEx(key, "Name")
+            winreg.CloseKey(key)
+            return name
+        except OSError:
+            return npf_name
+
     def refresh_devices(self):
         try:
-            devices = get_if_list() or []
+            raw = get_if_list() or []
+            names = []
+            self._display_to_npf = {}
+            for npf in raw:
+                disp = self._npf_to_friendly(npf)
+                if disp == r"\Device\NPF_Loopback":
+                    continue
+                label = f"{disp}"
+                names.append(label)
+                self._display_to_npf[label] = npf
         except Exception as e:
-            devices = []
+            names = []
             messagebox.showerror('Error', f'Interface enumerate failed: {e}')
-        self.device_combo['values'] = devices
-        if devices:
+        self.device_combo['values'] = names
+        if names:
             self.device_combo.current(0)
-            self._device_var.set(devices[0])
-            self._notify_device_change(devices[0])
+            self._device_var.set(names[0])
+            self._notify_device_change(self._display_to_npf[names[0]])
         else:
             self._device_var.set('')
             self.set_status('No interfaces found')
@@ -90,7 +110,8 @@ class GUI:
         self._my_mac_var.set(mac_text)
 
     def get_selected_device(self):
-        return self._device_var.get()
+        label = self._device_var.get()
+        return self._display_to_npf.get(label, '')
 
     def get_peer_mac(self):
         return self._peer_mac_var.get().strip()
@@ -104,13 +125,20 @@ class GUI:
     def set_status(self, text):
         self.status_var.set(text)
 
-    def _notify_device_change(self, sel):
+    def _notify_device_change(self, npf_name):
+        try:
+            mac = get_if_hwaddr(npf_name)
+        except Exception:
+            mac = ''
+        self.set_my_mac(mac)
         if self._on_device_change_cb:
-            self._on_device_change_cb(sel)
+            self._on_device_change_cb(npf_name)
 
     def _on_device_change(self, event=None):
-        sel = self._device_var.get()
-        self._notify_device_change(sel)
+        label = self._device_var.get()
+        npf = self._display_to_npf.get(label)
+        if npf:
+            self._notify_device_change(npf)
 
     def _on_send(self, event=None):
         msg = self._msg_var.get().strip()
