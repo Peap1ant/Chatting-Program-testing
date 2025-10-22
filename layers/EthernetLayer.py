@@ -1,8 +1,9 @@
 # ------ Import module(if needs) ------
-import sys
+
 from layers import BaseLayer
 
 # ------ Main code ------
+
 class EthernetLayer(BaseLayer):
     def __init__(self):
         super.__init__()

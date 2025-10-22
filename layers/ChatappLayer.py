@@ -1,10 +1,11 @@
 # ------ Import module(if needs) ------
+
 from layers import BaseLayer 
 import threading
-import sys
-import time
-from guilayer import GUI  
+from GUILayer import GUI  
+
 # ------ Main code ------
+
 class ChatAppLayer(BaseLayer):
     
     def __init__(self, nickname="User"):

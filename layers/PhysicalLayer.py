@@ -1,9 +1,11 @@
 # ------ Import module(if needs) ------
-from scapy.all import sniff, sendp, Ether, get_if_hwaddr
+
+from scapy.all import sniff, sendp
 import threading
 from BaseLayer import BaseLayer
 
 # ------ Main code ------
+
 class PhysicalLayer(BaseLayer):
 
     def __init__(self, iface: str):
