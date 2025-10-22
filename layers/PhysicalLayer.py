@@ -1,8 +1,8 @@
 # ------ Import module(if needs) ------
 
-from scapy.all import sniff, sendp, Raw
+from scapy.all import sniff, sendp
 import threading
-from .BaseLayer import BaseLayer
+from BaseLayer import BaseLayer
 
 # ------ Main code ------
 
@@ -31,11 +31,10 @@ class PhysicalLayer(BaseLayer):
             )
         self._rx_thread = threading.Thread(target=_loop, daemon=True)
         self._rx_thread.start()
-        
+
     def _forward(self, raw_bytes: bytes):
         if self.upper:
             self.upper.recv(raw_bytes)
-
 
     def stop(self):
         self.running = False
