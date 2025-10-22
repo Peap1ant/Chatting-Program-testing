@@ -1,3 +1,4 @@
+# GUILayer.py
 import tkinter as tk
 from tkinter import ttk, messagebox
 import re
@@ -107,7 +108,9 @@ class GUI:
         self._on_device_change_cb = fn
 
     def set_my_mac(self, mac_text):
-        self._my_mac_var.set(mac_text)
+        def _apply():
+            self._my_mac_var.set(mac_text)
+        self.root.after(0, _apply)
 
     def get_selected_device(self):
         label = self._device_var.get()
@@ -117,13 +120,17 @@ class GUI:
         return self._peer_mac_var.get().strip()
 
     def display_message(self, sender, text):
-        self.chat_text.configure(state='normal')
-        self.chat_text.insert('end', f'[{sender}] {text}\n')
-        self.chat_text.see('end')
-        self.chat_text.configure(state='disabled')
+        def _append():
+            self.chat_text.configure(state='normal')
+            self.chat_text.insert('end', f'[{sender}] {text}\n')
+            self.chat_text.see('end')
+            self.chat_text.configure(state='disabled')
+        self.root.after(0, _append)
 
     def set_status(self, text):
-        self.status_var.set(text)
+        def _apply():
+            self.status_var.set(text)
+        self.root.after(0, _apply)
 
     def _notify_device_change(self, npf_name):
         try:

@@ -1,3 +1,4 @@
+# main.py
 from layers.ChatappLayer import ChatAppLayer
 from layers.EthernetLayer import EthernetLayer
 from layers.PhysicalLayer import PhysicalLayer
@@ -31,6 +32,4 @@ def on_dev_change(selected_if):
 gui.set_on_device_change(on_dev_change)
 
 app.set_gui(gui)
-phy.start()
 app.run()
-phy.stop()
