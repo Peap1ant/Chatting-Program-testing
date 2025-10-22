@@ -1,9 +1,8 @@
-# GUILayer.py
 import tkinter as tk
 from tkinter import ttk, messagebox
+from scapy.all import get_if_list, get_if_hwaddr
 import re
 import winreg
-from scapy.all import get_if_list, get_if_hwaddr
 
 class GUI:
     def __init__(self, title='LAN Chatting Program'):
@@ -86,9 +85,8 @@ class GUI:
                 disp = self._npf_to_friendly(npf)
                 if disp == r"\Device\NPF_Loopback":
                     continue
-                label = f"{disp}"
-                names.append(label)
-                self._display_to_npf[label] = npf
+                names.append(disp)
+                self._display_to_npf[disp] = npf
         except Exception as e:
             names = []
             messagebox.showerror('Error', f'Interface enumerate failed: {e}')

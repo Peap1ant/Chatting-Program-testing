@@ -14,34 +14,34 @@ class ChatAppLayer(BaseLayer):
         if not self.lower:
             return False
         try:
-            dst_mac = bytes.fromhex(dst_mac_str.replace(':', ''))
-        except ValueError:
-            if self.gui:
-                self.gui.display_message("SYSTEM", "잘못된 MAC 주소 형식입니다.")
+            dst = bytes.fromhex(dst_mac_str.replace(':', '').replace('-', ''))
+            if len(dst) != 6:
+                return False
+            self.lower.set_dst_mac(dst)
+            msg = f"[{self.name}] {text}".encode("utf-8")
+            ok = self.lower.send(msg)
+            if ok and self.gui:
+                self.gui.display_message(self.name, text)
+            return ok
+        except Exception:
             return False
-        msg = f"[{self.name}]: {text}".encode('utf-8')
-        from .EthernetLayer import EthernetLayer
-        self.lower.set_dst_mac(dst_mac)
-        self.lower.send(msg)
-        if self.gui:
-            self.gui.display_message("나", text)
-        return True
 
     def recv(self, data: bytes):
         if not self.gui:
-            return
+            return False
         try:
-            data = data.rstrip(b'\x00')
-            full_message = data.decode('utf-8')
-            if full_message.startswith('[') and ':' in full_message:
-                parts = full_message.split(':', 1)
-                sender = parts[0].strip('[]')
-                content = parts[1].strip()
-                self.gui.display_message(sender, content)
-            else:
-                self.gui.display_message("Unknown", full_message)
+            s = data.decode("utf-8", errors="strict")
         except UnicodeDecodeError:
-            self.gui.display_message("SYSTEM", "[오류] 수신된 데이터를 디코딩할 수 없습니다.")
+            self.gui.display_message("SYSTEM", "[수신 디코딩 오류]")
+            return False
+        if s.startswith("[") and "]" in s:
+            r = s.split("]", 1)
+            sender = r[0].lstrip("[").strip()
+            content = r[1].strip()
+            self.gui.display_message(sender, content)
+        else:
+            self.gui.display_message("Unknown", s)
+        return True
 
     def run(self):
         if self.lower:

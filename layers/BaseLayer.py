@@ -11,10 +11,10 @@ class BaseLayer:
         self.lower = layer
 
     def send(self, data: bytes):
-        return None
+        return False
 
     def recv(self, data: bytes):
-        return None
+        return False
 
     def start(self):
         self.running = True
