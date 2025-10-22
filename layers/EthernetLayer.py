@@ -28,14 +28,27 @@ class EthernetLayer(BaseLayer):
         return False
 
     def recv(self, data: bytes):
+        if len(data) < 14:
+            return False
+
         frame_dst_mac = data[0:6]
+        ether_type = data[12:14]
         broadcast_address = b'\xFF\xFF\xFF\xFF\xFF\xFF'
+
         is_mine = (frame_dst_mac == self.src_mac)
         is_broadcast = (frame_dst_mac == broadcast_address)
         if not is_mine and not is_broadcast:
             return False
+
+        if ether_type != b'\xFF\xFF':
+            return False
+
         payload = data[14:]
+        payload = payload.rstrip(b'\x00')
+
         if self.upper:
             self.upper.recv(payload)
             return True
         return False
+
+
