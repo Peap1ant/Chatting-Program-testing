@@ -1,8 +1,9 @@
 # ------ Import module(if needs) ------
 
-from layers import BaseLayer 
+from .BaseLayer import BaseLayer
+from .GUILayer import GUI
 import threading
-from GUILayer import GUI  
+
 
 # ------ Main code ------
 

@@ -2,7 +2,7 @@
 
 from scapy.all import sniff, sendp
 import threading
-from BaseLayer import BaseLayer
+from .BaseLayer import BaseLayer
 
 # ------ Main code ------
 
