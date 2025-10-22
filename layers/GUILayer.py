@@ -1,171 +1,160 @@
 import tkinter as tk
-from tkinter import ttk
-import tkinter.font
-import queue
-import threading
-from scapy.all import get_if_list, get_if_hwaddr, sniff
-try:
-    from scapy.arch.windows import get_windows_if_list
-except Exception:
-    get_windows_if_list = None
+from tkinter import ttk, messagebox
+import re
+import winreg
+from scapy.all import get_if_list, get_if_hwaddr
 
 class GUI:
-    def __init__(self):
+    def __init__(self, title='LAN Chatting Program'):
         self.root = tk.Tk()
-        self.root.title('Chatting Program')
-        self.root.geometry('1000x600+0+0')
+        self.root.title(title)
+        self.root.geometry('900x520')
         self.root.resizable(False, False)
-        self.font = tkinter.font.Font(family="Arial", size=10)
         self._send_cb = None
-        self._q = queue.Queue()
-        self.if_map = {}
+        self._on_device_change_cb = None
+        self._device_var = tk.StringVar()
+        self._peer_mac_var = tk.StringVar(value='FF:FF:FF:FF:FF:FF')
+        self._msg_var = tk.StringVar()
+        self._my_mac_var = tk.StringVar(value='')
+        self._display_to_npf = {}
+
         top = tk.Frame(self.root)
-        top.pack(side='top', fill='x', padx=10, pady=8)
+        top.pack(side='top', fill='x', padx=12, pady=10)
+
         tk.Label(top, text='Device').grid(row=0, column=0, sticky='w')
-        self.if_var = tk.StringVar()
-        self.if_combo = ttk.Combobox(top, textvariable=self.if_var, state='readonly', width=60, values=self._build_iface_display_list())
-        if self.if_combo['values']:
-            self.if_combo.current(0)
-        self.if_combo.grid(row=0, column=1, padx=8, sticky='w')
-        self.if_combo.bind('<<ComboboxSelected>>', self._on_iface_change)
-        tk.Label(top, text='My MAC').grid(row=0, column=2, sticky='e')
-        self.my_mac_var = tk.StringVar(value=self._get_current_mac())
-        self.my_mac_lbl = tk.Label(top, textvariable=self.my_mac_var, width=20, anchor='w')
-        self.my_mac_lbl.grid(row=0, column=3, padx=8, sticky='w')
+        self.device_combo = ttk.Combobox(top, textvariable=self._device_var, state='readonly', width=42)
+        self.device_combo.grid(row=0, column=1, sticky='w', padx=6)
+        self.device_combo.bind('<<ComboboxSelected>>', self._on_device_change)
+
+        self.refresh_btn = ttk.Button(top, text='Refresh', command=self.refresh_devices)
+        self.refresh_btn.grid(row=0, column=2, padx=6)
+
+        tk.Label(top, text='My MAC').grid(row=0, column=3, sticky='e', padx=(18,4))
+        self.my_mac_label = tk.Label(top, textvariable=self._my_mac_var, relief='sunken', anchor='w', width=20)
+        self.my_mac_label.grid(row=0, column=4, sticky='w')
+
         tk.Label(top, text='Peer MAC').grid(row=1, column=0, sticky='w', pady=(8,0))
-        self.dst_mac_var = tk.StringVar()
-        self.dst_mac_entry = tk.Entry(top, textvariable=self.dst_mac_var, width=30)
-        self.dst_mac_entry.grid(row=1, column=1, padx=8, pady=(8,0), sticky='w')
+        self.peer_entry = ttk.Entry(top, textvariable=self._peer_mac_var, width=43)
+        self.peer_entry.grid(row=1, column=1, sticky='w', padx=6, pady=(8,0))
+
+        tk.Label(top, text='Message').grid(row=1, column=3, sticky='e', padx=(18,4), pady=(8,0))
+        self.msg_entry = ttk.Entry(top, textvariable=self._msg_var, width=28)
+        self.msg_entry.grid(row=1, column=4, sticky='w', pady=(8,0))
+        self.msg_entry.bind('<Return>', self._on_send)
+
+        self.send_btn = ttk.Button(top, text='Send', command=self._on_send)
+        self.send_btn.grid(row=1, column=5, padx=(8,0), pady=(8,0))
+
         mid = tk.Frame(self.root)
-        mid.pack(side='top', fill='both', expand=True, padx=10, pady=8)
-        self.chat = tk.Text(mid, state='disabled', wrap='word')
-        self.chat.pack(side='left', fill='both', expand=True)
-        scroll = tk.Scrollbar(mid, command=self.chat.yview)
-        scroll.pack(side='right', fill='y')
-        self.chat['yscrollcommand'] = scroll.set
-        bottom = tk.Frame(self.root)
-        bottom.pack(side='bottom', fill='x', padx=10, pady=8)
-        self.msg = tk.Text(bottom, height=3)
-        self.msg.pack(side='left', fill='x', expand=True, padx=(0,8))
-        self.msg.bind('<Shift-Return>', lambda e: self._insert_newline())
-        self.msg.bind('<Return>', self._on_enter)
-        self.send_btn = tk.Button(bottom, text='Send', width=12, command=self._on_send)
-        self.send_btn.pack(side='right')
-        self.root.after(50, self._drain_queue)
-        self._on_iface_change()
+        mid.pack(side='top', fill='both', expand=True, padx=12, pady=(6,10))
 
-    def _build_iface_display_list(self):
-        displays = []
-        self.if_map.clear()
+        self.chat_text = tk.Text(mid, wrap='word', state='disabled')
+        self.chat_scroll = ttk.Scrollbar(mid, orient='vertical', command=self.chat_text.yview)
+        self.chat_text.configure(yscrollcommand=self.chat_scroll.set)
+        self.chat_text.pack(side='left', fill='both', expand=True)
+        self.chat_scroll.pack(side='right', fill='y')
+
+        status = tk.Frame(self.root)
+        status.pack(side='bottom', fill='x')
+        self.status_var = tk.StringVar(value='Ready')
+        self.status_label = tk.Label(status, textvariable=self.status_var, anchor='w')
+        self.status_label.pack(side='left', fill='x', expand=True, padx=12, pady=6)
+
+        self.refresh_devices()
+
+    def _npf_to_friendly(self, npf_name):
+        m = re.search(r'\{[0-9A-Fa-f\-]{36}\}', npf_name)
+        if not m:
+            return npf_name
+        guid = m.group(0)
+        path = r"SYSTEM\\CurrentControlSet\\Control\\Network\\{4d36e972-e325-11ce-bfc1-08002be10318}\\" + guid + r"\\Connection"
         try:
-            for item in get_windows_if_list():
-                name = item.get('name') or ''
-                desc = item.get('description') or ''
-                mac = (item.get('mac') or '').lower()
-                guid = item.get('guid') or ''
-                # 내부 캡처용 이름
-                dev_name = f"\\Device\\NPF_{guid}"
-                display = f'{name} | {desc} | {mac}'
-                self.if_map[display] = {'ifname': dev_name, 'mac': mac}
-                displays.append(display)
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
+            name, _ = winreg.QueryValueEx(key, "Name")
+            winreg.CloseKey(key)
+            return name
+        except OSError:
+            return npf_name
+
+    def refresh_devices(self):
+        try:
+            raw = get_if_list() or []
+            names = []
+            self._display_to_npf = {}
+            for npf in raw:
+                disp = self._npf_to_friendly(npf)
+                if disp == r"\Device\NPF_Loopback":
+                    continue
+                label = f"{disp}"
+                names.append(label)
+                self._display_to_npf[label] = npf
+        except Exception as e:
+            names = []
+            messagebox.showerror('Error', f'Interface enumerate failed: {e}')
+        self.device_combo['values'] = names
+        if names:
+            self.device_combo.current(0)
+            self._device_var.set(names[0])
+            self._notify_device_change(self._display_to_npf[names[0]])
+        else:
+            self._device_var.set('')
+            self.set_status('No interfaces found')
+
+    def set_send_callback(self, fn):
+        self._send_cb = fn
+
+    def set_on_device_change(self, fn):
+        self._on_device_change_cb = fn
+
+    def set_my_mac(self, mac_text):
+        self._my_mac_var.set(mac_text)
+
+    def get_selected_device(self):
+        label = self._device_var.get()
+        return self._display_to_npf.get(label, '')
+
+    def get_peer_mac(self):
+        return self._peer_mac_var.get().strip()
+
+    def display_message(self, sender, text):
+        self.chat_text.configure(state='normal')
+        self.chat_text.insert('end', f'[{sender}] {text}\n')
+        self.chat_text.see('end')
+        self.chat_text.configure(state='disabled')
+
+    def set_status(self, text):
+        self.status_var.set(text)
+
+    def _notify_device_change(self, npf_name):
+        try:
+            mac = get_if_hwaddr(npf_name)
         except Exception:
-            for ifname in get_if_list():
-                try:
-                    mac = get_if_hwaddr(ifname).lower()
-                except Exception:
-                    mac = ''
-                display = f'{ifname} | {mac}'
-                self.if_map[display] = {'ifname': ifname, 'mac': mac}
-                displays.append(display)
-        return displays
+            mac = ''
+        self.set_my_mac(mac)
+        if self._on_device_change_cb:
+            self._on_device_change_cb(npf_name)
 
-    def _selected_ifname(self):
-        key = self.if_var.get()
-        info = self.if_map.get(key)
-        return info['ifname'] if info else ''
+    def _on_device_change(self, event=None):
+        label = self._device_var.get()
+        npf = self._display_to_npf.get(label)
+        if npf:
+            self._notify_device_change(npf)
 
-    def _get_current_mac(self):
-        ifname = self._selected_ifname()
-        if not ifname:
-            return '-'
-        try:
-            return get_if_hwaddr(ifname).lower()
-        except Exception:
-            return '-'
-
-    def _on_iface_change(self, event=None):
-        mac = self._get_current_mac()
-        self.my_mac_var.set(mac)
-        try:
-            threading.Thread(target=self._autofill_peer_mac, daemon=True).start()
-        except Exception:
-            pass
-
-    def _autofill_peer_mac(self):
-        ifname = self._selected_ifname()
-        if not ifname:
+    def _on_send(self, event=None):
+        msg = self._msg_var.get().strip()
+        dst = self.get_peer_mac()
+        if not msg:
+            messagebox.showwarning('알림', '메시지를 입력하세요.')
             return
-        my_mac = self._get_current_mac()
-        candidates = {}
-        def collect(pkt):
-            try:
-                raw = bytes(pkt)
-                smac = raw[6:12].hex(':')
-                dmac = raw[0:6].hex(':')
-                if smac and smac != my_mac and smac != 'ff:ff:ff:ff:ff:ff' and dmac in (my_mac, 'ff:ff:ff:ff:ff:ff'):
-                    candidates[smac] = candidates.get(smac, 0) + 1
-            except Exception:
-                pass
-        try:
-            sniff(iface=ifname, prn=collect, store=False, timeout=1, count=30)
-        except Exception:
+        if not dst:
+            messagebox.showwarning('알림', '상대 MAC 주소를 입력하세요.')
             return
-        if not candidates:
-            return
-        best = max(candidates.items(), key=lambda x: x[1])[0]
-        self.dst_mac_var.set(best)
-
-    def set_send_callback(self, cb):
-        self._send_cb = cb
-
-    def set_my_mac(self, mac_str):
-        self.my_mac_var.set(mac_str.lower())
-
-    def get_selected_iface(self):
-        return self._selected_ifname()
-
-    def display_message(self, sender, content):
-        self._q.put(f'[{sender}]: {content}\n')
-
-    def _drain_queue(self):
-        try:
-            while True:
-                line = self._q.get_nowait()
-                self.chat.configure(state='normal')
-                self.chat.insert('end', line)
-                self.chat.see('end')
-                self.chat.configure(state='disabled')
-        except queue.Empty:
-            pass
-        self.root.after(50, self._drain_queue)
-
-    def _on_send(self):
-        if not self._send_cb:
-            self.display_message('SYSTEM', '전송 콜백이 설정되지 않았습니다.')
-            return
-        dst = self.dst_mac_var.get().strip()
-        msg = self.msg.get('1.0', 'end-1c')
-        ok = self._send_cb(dst, msg)
-        if ok:
-            self.msg.delete('1.0', 'end')
-
-    def _on_enter(self, event):
-        self._on_send()
-        return 'break'
-
-    def _insert_newline(self):
-        self.msg.insert('insert', '\n')
-        return 'break'
+        if self._send_cb:
+            ok = self._send_cb(dst, msg)
+            if ok:
+                self._msg_var.set('')
+        else:
+            messagebox.showerror('오류', '전송 콜백이 설정되지 않았습니다.')
 
     def run(self):
         self.root.mainloop()

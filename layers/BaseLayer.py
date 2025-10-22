@@ -1,12 +1,3 @@
-# ------ Import module(if needs) ------
-
-# ------ Main code ------
-
-"""
-Base of the all layers.
-
-"""
-
 class BaseLayer:
     def __init__(self):
         self.upper = None
@@ -27,7 +18,10 @@ class BaseLayer:
 
     def start(self):
         self.running = True
+        if self.lower and hasattr(self.lower, "start"):
+            self.lower.start()
 
     def stop(self):
         self.running = False
-        
+        if self.lower and hasattr(self.lower, "stop"):
+            self.lower.stop()

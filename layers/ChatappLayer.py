@@ -1,70 +1,52 @@
-# ------ Import module(if needs) ------
+from .BaseLayer import BaseLayer
 
-from layers.BaseLayer import BaseLayer
-import threading
-from layers.GUILayer import GUI
-
-# ------ Main code ------
 class ChatAppLayer(BaseLayer):
-    
-    def __init__(self, nickname="User"):
+    def __init__(self, name: str):
         super().__init__()
-        self.nickname = nickname
-        self.gui: GUI = None         
-        self.stop_event = threading.Event()
-        
-    def set_gui(self, gui_instance: GUI):
+        self.gui = None
+        self.name = name
 
-        self.gui = gui_instance
+    def set_gui(self, gui):
+        self.gui = gui
         self.gui.set_send_callback(self.gui_send_handler)
-        self.gui.set_my_mac(self.nickname) 
 
-    def gui_send_handler(self, dst_mac_str: str, message: str) -> bool:
-        if not message.strip():
+    def gui_send_handler(self, dst_mac_str: str, text: str):
+        if not self.lower:
             return False
-
-        full_message = f"[{self.nickname}]: {message}"
-        encoded_data = full_message.encode('utf-8')
-
         try:
-            dst_mac_bytes = bytes.fromhex(dst_mac_str.replace(':', ''))
-            if len(dst_mac_bytes) != 6:
-                raise ValueError("MAC 주소 길이가 잘못되었습니다.")
+            dst_mac = bytes.fromhex(dst_mac_str.replace(':', ''))
         except ValueError:
-            self.gui.display_message("SYSTEM", f"[오류] 잘못된 MAC 주소 형식입니다: {dst_mac_str}")
+            if self.gui:
+                self.gui.display_message("SYSTEM", "잘못된 MAC 주소 형식입니다.")
             return False
+        msg = f"[{self.name}]: {text}".encode('utf-8')
+        from .EthernetLayer import EthernetLayer
+        self.lower.set_dst_mac(dst_mac)
+        self.lower.send(msg)
+        if self.gui:
+            self.gui.display_message("나", text)
+        return True
 
-        if self.lower:
-            self.lower.set_dst_mac(dst_mac_bytes) 
-            self.lower.send(encoded_data)
-            self.gui.display_message("나", message) 
-            return True
-        else:
-            self.gui.display_message("SYSTEM", "[경고] 하위 계층이 설정되지 않았습니다. 전송 실패.")
-            return False
-
-
-    def recv(self, data):
+    def recv(self, data: bytes):
+        if not self.gui:
+            return
         try:
-            msg = data.decode(errors='ignore')
-            if not msg:
-                return
-            self.gui.display_message("Peer", msg)
-        except Exception:
-            if not hasattr(self, "_last_error_time"):
-                self._last_error_time = 0
-            import time
-            now = time.time()
-            if now - self._last_error_time > 3:
-                if self.gui:
-                    self.gui.display_message("SYSTEM", "오류: 수신된 데이터를 디코딩할 수 없습니다.")
-                self._last_error_time = now
-
+            data = data.rstrip(b'\x00')
+            full_message = data.decode('utf-8')
+            if full_message.startswith('[') and ':' in full_message:
+                parts = full_message.split(':', 1)
+                sender = parts[0].strip('[]')
+                content = parts[1].strip()
+                self.gui.display_message(sender, content)
+            else:
+                self.gui.display_message("Unknown", full_message)
+        except UnicodeDecodeError:
+            self.gui.display_message("SYSTEM", "[오류] 수신된 데이터를 디코딩할 수 없습니다.")
 
     def run(self):
+        if self.lower:
+            self.lower.start()
         if self.gui:
-            self.start()
             self.gui.run()
-            self.stop() 
-        else:
-            print("GUI 인스턴스가 설정되지 않았습니다. set_gui()를 먼저 호출하세요.")
+        if self.lower:
+            self.lower.stop()
