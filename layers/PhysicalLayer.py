@@ -1,31 +1,28 @@
-# ------ Import module(if needs) ------
-
 from scapy.all import sniff, sendp
 import threading
-from BaseLayer import BaseLayer
-
-# ------ Main code ------
+from layers.BaseLayer import BaseLayer
 
 class PhysicalLayer(BaseLayer):
-
     def __init__(self, iface: str):
         super().__init__()
         self.iface = iface
         self._stop_evt = threading.Event()
         self._rx_thread = None
 
-    def send(self, frame: bytes):
-        sendp(frame, iface=self.iface, verbose=False)
+    def send(self, raw_bytes: bytes):
+        if not raw_bytes:
+            return False
+        sendp(raw_bytes, iface=self.iface, verbose=False)
+        return True
 
-    def start(self, promisc=True, bpf_filter=None):
+    def start(self):
+        if self.running:
+            return
         self.running = True
-
         def _loop():
             sniff(
                 iface=self.iface,
                 store=False,
-                promisc=promisc,
-                filter=bpf_filter,
                 prn=lambda pkt: self._forward(bytes(pkt)),
                 stop_filter=lambda pkt: not self.running
             )

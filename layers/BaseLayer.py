@@ -30,3 +30,4 @@ class BaseLayer:
 
     def stop(self):
         self.running = False
+        

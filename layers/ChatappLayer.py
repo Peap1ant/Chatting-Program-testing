@@ -1,8 +1,8 @@
 # ------ Import module(if needs) ------
 
-from layers import BaseLayer 
+from layers.BaseLayer import BaseLayer
 import threading
-from GUILayer import GUI  
+from layers.GUILayer import GUI
 
 # ------ Main code ------
 class ChatAppLayer(BaseLayer):
@@ -44,24 +44,22 @@ class ChatAppLayer(BaseLayer):
             return False
 
 
-    def recv(self, data: bytes):
-        if not self.gui:
-            print("[경고] GUI가 연결되지 않아 수신 메시지를 표시할 수 없습니다.")
-            return
-
+    def recv(self, data):
         try:
-            full_message = data.decode('utf-8')
-            
-            if full_message.startswith('[') and ':' in full_message:
-                 parts = full_message.split(':', 1)
-                 sender = parts[0].strip('[]')
-                 content = parts[1].strip()
-                 self.gui.display_message(sender, content)
-            else:
-                 self.gui.display_message("Unknown", full_message)
-            
-        except UnicodeDecodeError:
-            self.gui.display_message("SYSTEM", "[오류] 수신된 데이터를 디코딩할 수 없습니다.")
+            msg = data.decode(errors='ignore')
+            if not msg:
+                return
+            self.gui.display_message("Peer", msg)
+        except Exception:
+            if not hasattr(self, "_last_error_time"):
+                self._last_error_time = 0
+            import time
+            now = time.time()
+            if now - self._last_error_time > 3:
+                if self.gui:
+                    self.gui.display_message("SYSTEM", "오류: 수신된 데이터를 디코딩할 수 없습니다.")
+                self._last_error_time = now
+
 
     def run(self):
         if self.gui:
