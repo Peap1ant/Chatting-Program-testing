@@ -18,10 +18,10 @@ class ChatAppLayer(BaseLayer):
             if len(dst) != 6:
                 return False
             self.lower.set_dst_mac(dst)
-            msg = f"[{self.name}] {text}".encode("utf-8")
+            msg = f"[SEND] {text}".encode("utf-8")
             ok = self.lower.send(msg)
             if ok and self.gui:
-                self.gui.display_message(self.name, text)
+                self.gui.display_message("SEND", text)
             return ok
         except Exception:
             return False
@@ -36,11 +36,10 @@ class ChatAppLayer(BaseLayer):
             return False
         if s.startswith("[") and "]" in s:
             r = s.split("]", 1)
-            sender = r[0].lstrip("[").strip()
             content = r[1].strip()
-            self.gui.display_message(sender, content)
+            self.gui.display_message("RCVD", content)
         else:
-            self.gui.display_message("Unknown", s)
+            self.gui.display_message("RCVD", s)
         return True
 
     def run(self):
