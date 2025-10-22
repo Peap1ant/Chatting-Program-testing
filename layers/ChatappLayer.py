@@ -18,13 +18,16 @@ class ChatAppLayer(BaseLayer):
             if len(dst) != 6:
                 return False
             self.lower.set_dst_mac(dst)
-            msg = f"[{self.name}] {text}".encode("utf-8")
+            name = self.gui.get_user_name() if self.gui else self.name
+            self.name = name
+            msg = f"[{name}] {text}".encode("utf-8")
             ok = self.lower.send(msg)
             if ok and self.gui:
-                self.gui.display_message(self.name, text)
+                self.gui.display_message(name, text)
             return ok
         except Exception:
             return False
+
 
     def recv(self, data: bytes):
         if not self.gui:
