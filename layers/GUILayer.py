@@ -91,9 +91,13 @@ class GUI:
 
         self.refresh_devices()
 
+    def set_title(self, title: str):
+        self.root.title(title)
+
     def _npf_to_friendly(self, npf_name):
         m = re.search(r'\{[0-9A-Fa-f\-]{36}\}', npf_name)
-        if not m: return npf_name
+        if not m:
+            return npf_name
         guid = m.group(0)
         path = r"SYSTEM\\CurrentControlSet\\Control\\Network\\{4d36e972-e325-11ce-bfc1-08002be10318}\\" + guid + r"\\Connection"
         try:
