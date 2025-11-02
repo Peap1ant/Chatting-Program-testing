@@ -1,6 +1,7 @@
 from layers.ChatappLayer import ChatAppLayer
 from layers.EthernetLayer import EthernetLayer
 from layers.IPLayer import IPLayer
+from layers.ARPLayer import ARPLayer
 from layers.PhysicalLayer import PhysicalLayer
 from layers.GUILayer import GUI
 
@@ -9,13 +10,16 @@ iface = gui.get_selected_device()
 
 app = ChatAppLayer()
 ip_layer = IPLayer()
+arp = ARPLayer()
 eth = EthernetLayer()
 phy = PhysicalLayer(iface=iface)
 
 app.set_lower(ip_layer)
 ip_layer.set_upper(app)
-ip_layer.set_lower(eth)
-eth.set_upper(ip_layer)
+ip_layer.set_lower(arp)
+arp.set_upper(ip_layer)
+arp.set_lower(eth)
+eth.set_upper(arp)
 eth.set_lower(phy)
 phy.set_upper(eth)
 
@@ -39,9 +43,20 @@ def on_dev_change(selected_if, mac_str, ip_str):
                 gui.set_status(f"Ready. Device: {selected_if} (IP: {ip_str})")
             else:
                 raise ValueError("잘못된 IP 형식")
+            
         else:
             ip_layer.set_src_ip(b'\x00\x00\x00\x00')
             gui.set_status(f"Warning: No valid IP found for {selected_if}. Using 0.0.0.0")
+        
+        #ARP 계층 초기화
+        arp.set_src_info(ip_bytes, mac)
+
+        #Gratuitous ARP 송신 (자신의 IP-MAC을 알림)
+        arp.send_gratuitous()
+
+        #Proxy ARP 등록
+        arp.add_proxy_entry(b'\xC0\xA8\x00\x64', mac)
+
 
     except Exception as e:
         gui.set_status(f"Error setting device: {e}")
