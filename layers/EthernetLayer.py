@@ -7,9 +7,13 @@ class EthernetLayer(BaseLayer):
         self.dst_mac = bytearray(6)
 
     def set_src_mac(self, mac: bytes):
+        mac_str = ':'.join(f'{b:02x}' for b in mac)
+        print(f"[ETH] Source MAC set to: {mac_str}")
         self.src_mac[:] = mac
 
     def set_dst_mac(self, mac: bytes):
+        mac_str = ':'.join(f'{b:02x}' for b in mac)
+        print(f"[ETH] Destination MAC set to: {mac_str}")
         self.dst_mac[:] = mac
 
     def send(self, data: bytes):
@@ -24,6 +28,7 @@ class EthernetLayer(BaseLayer):
         return self.lower.send(frame)
 
     def recv(self, data: bytes):
+        # ... (기존과 동일) ...
         if len(data) < 14:
             return False
         dst = data[0:6]
