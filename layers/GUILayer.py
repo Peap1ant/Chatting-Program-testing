@@ -3,13 +3,24 @@ from tkinter import ttk, messagebox
 from scapy.all import get_if_list, get_if_hwaddr, get_if_addr
 import re
 import winreg
+from .ARPWindow import TestArpDialog
 
 class GUI:
     def __init__(self, title='LAN Chatting Program'):
+
+        self.arp = None
+
         self.root = tk.Tk()
         self.root.title(title)
         self.root.geometry('900x520')
         self.root.resizable(False, False)
+
+        # ARP window
+        self.menubar = tk.Menu(self.root)
+        tools = tk.Menu(self.menubar, tearoff=0)
+        tools.add_command(label = 'ARP Tool...', command = self.open_ARP_window)
+        self.menubar.add_cascade(label = 'Tools', menu = tools)
+        self.root.config(menu = self.menubar)
 
         # 콜백 함수들
         self._send_cb = None
@@ -195,6 +206,14 @@ class GUI:
         if self._on_device_change_cb:
             self._on_device_change_cb(npf_name, mac_str, ip_str)
 
+        if self.arp:
+            try:
+                ip_b  = bytes(map(int, ip_str.split('.')))
+                mac_b = bytes.fromhex(mac_str.replace(':','').replace('-', ''))
+                self.arp.set_src_info(ip_b, mac_b)  # ARP가 이후 lookup/GARP에 사용할 내 IP/MAC 등록
+            except Exception:
+                pass
+
     def _on_device_change(self, event=None):
         label = self._device_var.get()
         npf = self._display_to_npf.get(label)
@@ -238,6 +257,18 @@ class GUI:
                 self._msg_var.set('')
         else:
             messagebox.showerror('오류', '전송 콜백이 설정되지 않았습니다.')
+
+    def attach_arp(self, arp):
+        """메인에서 생성한 ARPLayer를 붙인다"""
+        self.arp = arp
+
+    def open_ARP_window(self):
+        if not getattr(self, "arp", None):
+            messagebox.showerror("오류", "ARPLayer가 연결되지 않았습니다.")
+            return
+        if getattr(self, "_arp_win", None) and self._arp_win.winfo_exists():
+            self._arp_win.lift(); self._arp_win.focus_force(); return
+        self._arp_win = TestArpDialog(self.root, self.arp)
 
     def run(self):
         self.root.mainloop()

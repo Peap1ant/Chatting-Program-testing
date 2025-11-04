@@ -22,6 +22,7 @@ arp.set_lower(eth)
 eth.set_upper(arp)
 eth.set_lower(phy)
 phy.set_upper(eth)
+gui.attach_arp(arp)
 
 def on_dev_change(selected_if, mac_str, ip_str):
     print(f"\n[Main] Device Change Event: iface={selected_if}, mac={mac_str}, ip={ip_str}")
