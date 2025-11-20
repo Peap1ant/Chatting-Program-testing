@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from scapy.all import get_if_list, get_if_hwaddr, get_if_addr
 import re
 import winreg
@@ -24,6 +24,7 @@ class GUI:
 
         # 콜백 함수들
         self._send_cb = None
+        self._file_send_cb = None
         self._on_device_change_cb = None
         self._set_mac_cb = None
         self._set_ip_cb = None
@@ -85,7 +86,10 @@ class GUI:
         self.msg_entry.bind('<Return>', self._on_send)
 
         self.send_btn = ttk.Button(top, text='Send', command=self._on_send)
-        self.send_btn.grid(row=4, column=4, padx=6, pady=(8,0))
+        self.send_btn.grid(row=4, column=4, padx=2, pady=(8,0))
+
+        self.file_btn = ttk.Button(top, text='File...', command=self._on_file_btn)
+        self.file_btn.grid(row=4, column=5, padx=2, pady=(8,0))
 
         mid = tk.Frame(self.root)
         mid.pack(side='top', fill='both', expand=True, padx=12, pady=(10,10))
@@ -110,10 +114,10 @@ class GUI:
         if not m:
             return npf_name
         guid = m.group(0)
-        path = r"SYSTEM\\CurrentControlSet\\Control\\Network\\{4d36e972-e325-11ce-bfc1-08002be10318}\\" + guid + r"\\Connection"
+        path = r'SYSTEM\\CurrentControlSet\\Control\\Network\\{4d36e972-e325-11ce-bfc1-08002be10318}\\' + guid + r'\\Connection'
         try:
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, path)
-            name, _ = winreg.QueryValueEx(key, "Name")
+            name, _ = winreg.QueryValueEx(key, 'Name')
             winreg.CloseKey(key)
             return name
         except OSError: return npf_name
@@ -125,7 +129,7 @@ class GUI:
             self._display_to_npf = {}
             for npf in raw:
                 disp = self._npf_to_friendly(npf)
-                if disp == r"\Device\NPF_Loopback": continue
+                if disp == r'\Device\NPF_Loopback': continue
                 names.append(disp)
                 self._display_to_npf[disp] = npf
         except Exception as e:
@@ -153,6 +157,9 @@ class GUI:
 
     def set_ip_callback(self, fn):
         self._set_ip_cb = fn
+
+    def set_file_send_callback(self, fn):
+        self._file_send_cb = fn
 
     def set_my_mac(self, mac_text):
         def _apply():
@@ -227,9 +234,9 @@ class GUI:
             return
         if self._set_mac_cb:
             if self._set_mac_cb(dst_mac):
-                self.set_status(f"Peer MAC set to {dst_mac}")
+                self.set_status(f'Peer MAC set to {dst_mac}')
             else:
-                self.set_status(f"Failed to set Peer MAC (invalid format?)")
+                self.set_status(f'Failed to set Peer MAC (invalid format?)')
         else:
             messagebox.showerror('오류', 'MAC 설정 콜백이 설정되지 않았습니다.')
 
@@ -240,9 +247,9 @@ class GUI:
             return
         if self._set_ip_cb:
             if self._set_ip_cb(dst_ip):
-                self.set_status(f"Peer IP set to {dst_ip}")
+                self.set_status(f'Peer IP set to {dst_ip}')
             else:
-                self.set_status(f"Failed to set Peer IP (invalid format?)")
+                self.set_status(f'Failed to set Peer IP (invalid format?)')
         else:
             messagebox.showerror('오류', 'IP 설정 콜백이 설정되지 않았습니다.')
 
@@ -258,15 +265,24 @@ class GUI:
         else:
             messagebox.showerror('오류', '전송 콜백이 설정되지 않았습니다.')
 
+    def _on_file_btn(self):
+        """파일 선택 모달"""
+        filename = filedialog.askopenfilename(title='Select File to Send')
+        if filename:
+            if self._file_send_cb:
+                self._file_send_cb(filename)
+            else:
+                messagebox.showerror('Error', 'File callback not set')
+
     def attach_arp(self, arp):
         """메인에서 생성한 ARPLayer를 붙인다"""
         self.arp = arp
 
     def open_ARP_window(self):
-        if not getattr(self, "arp", None):
-            messagebox.showerror("오류", "ARPLayer가 연결되지 않았습니다.")
+        if not getattr(self, 'arp', None):
+            messagebox.showerror('오류', 'ARPLayer가 연결되지 않았습니다.')
             return
-        if getattr(self, "_arp_win", None) and self._arp_win.winfo_exists():
+        if getattr(self, '_arp_win', None) and self._arp_win.winfo_exists():
             self._arp_win.lift(); self._arp_win.focus_force(); return
         self._arp_win = TestArpDialog(self.root, self.arp)
 

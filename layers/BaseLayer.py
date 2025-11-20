@@ -18,10 +18,10 @@ class BaseLayer:
 
     def start(self):
         self.running = True
-        if self.lower and hasattr(self.lower, "start"):
+        if self.lower and hasattr(self.lower, 'start'):
             self.lower.start()
 
     def stop(self):
         self.running = False
-        if self.lower and hasattr(self.lower, "stop"):
+        if self.lower and hasattr(self.lower, 'stop'):
             self.lower.stop()
