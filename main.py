@@ -39,6 +39,7 @@ gui.attach_arp(arp)
 chat_app.set_gui(gui)
 file_app.set_gui(gui)   # GUI 연결
 gui.set_file_send_callback(file_app.send) # 파일 전송 콜백 연결
+gui.set_chat_app(chat_app)
 
 # Device Change 핸들러
 def on_dev_change(selected_if, mac_str, ip_str):

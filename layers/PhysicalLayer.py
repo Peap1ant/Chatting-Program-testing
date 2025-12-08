@@ -55,7 +55,7 @@ class PhysicalLayer(BaseLayer):
                     iface=self.iface,
                     store=False,
                     prn=self._on_pkt,
-                    timeout=2
+                    timeout=10
                 )
             except Exception as e:
                 # 인터페이스가 갑자기 사라지거나 할 때 오류 발생 가능
@@ -85,5 +85,5 @@ class PhysicalLayer(BaseLayer):
     def stop(self):
         self._stop.set()
         if self._t:
-            self._t.join(timeout=3)
+            self._t.join(timeout=12)
             self._t = None
