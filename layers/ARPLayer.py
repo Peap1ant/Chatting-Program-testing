@@ -88,31 +88,40 @@ class ARPLayer(BaseLayer):
         print(f'[ARP] Gratuitous 송신: {self._ip_str(self.src_ip)} is-at {self._mac_str(self.src_mac)}')
         return True
 
-    # ==== [수정됨] 수신 처리 (ARP 패킷은 처리하고, 나머지는 위로 올림) =============
     def recv(self, data: bytes):
         # 1. ARP 패킷으로 파싱 시도
         try:
             pkt = ARP(data)
-            # 파싱엔 성공했으나 ARP op코드가 1(Req)이나 2(Rep)가 아니면 무시(Exception 유도 혹은 아래 로직으로 이동)
             if pkt.op not in [1, 2]:
                 raise ValueError('Not an ARP packet')
 
             op = pkt.op
-            sender_ip = tuple(int(x) for x in pkt.psrc.split('.'))
+
+            # [수정 중요] tuple(...) 대신 bytes(...)를 사용해야 함
+            # sender_ip = tuple(int(x) for x in pkt.psrc.split('.'))  <-- 기존 코드 (삭제)
+            sender_ip = bytes(map(int, pkt.psrc.split('.')))        # <-- 수정 코드
+
             sender_mac = bytes.fromhex(pkt.hwsrc.replace(':', ''))
-            target_ip = tuple(int(x) for x in pkt.pdst.split('.'))
+
+            # [수정 중요] 타겟 IP도 비교를 위해 bytes로 변환
+            # target_ip = tuple(int(x) for x in pkt.pdst.split('.'))  <-- 기존 코드 (삭제)
+            target_ip = bytes(map(int, pkt.pdst.split('.')))        # <-- 수정 코드
 
             if op == 2:
                 with self.lock:
+                    # 이제 bytes 키로 저장되므로 GUI에서 조회 가능
                     self.arp_table[sender_ip] = sender_mac
                 print(f'[ARP] 캐시 학습: {pkt.psrc} -> {pkt.hwsrc}')
                 return True
 
             elif op == 1:
                 print(f'[ARP] Request 수신: who has {pkt.pdst}? tell {pkt.psrc}')
-                if target_ip == tuple(self.src_ip):
+
+                # [수정] target_ip가 이미 bytes이므로 tuple() 변환 제거
+                if target_ip == self.src_ip:  # tuple(self.src_ip) 제거
                     self.reply(sender_ip, sender_mac)
                     return True
+
                 if target_ip in self.proxy_map:
                     proxy_mac = self.proxy_map[target_ip]
                     self.reply(sender_ip, sender_mac, proxy_ip=target_ip, proxy_mac=proxy_mac)
@@ -122,11 +131,9 @@ class ARPLayer(BaseLayer):
             return True
 
         except Exception:
-            # 2. ARP 패킷이 아니거나 파싱 실패 시, 상위 계층(IPLayer)으로 전달
             if self.upper:
                 return self.upper.recv(data)
             return False
-    # =========================================================================
 
     # ==== GUI 연동용 (기존 동일) ===============================================
     def add_proxy_entry_from_gui(self, ip_str, mac_str):

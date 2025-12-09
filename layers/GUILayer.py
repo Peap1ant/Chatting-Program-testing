@@ -5,6 +5,8 @@ import re
 import winreg
 import os
 import mimetypes
+import threading
+import time
 from PIL import Image, ImageTk # pip install pillow 필요
 from .ARPWindow import TestArpDialog
 
@@ -232,12 +234,69 @@ class GUI:
         if not dst_ip:
             messagebox.showwarning('알림', 'IP 주소를 입력하세요.')
             return
+
+        # 1. 하위 계층에 IP 설정 (기존 로직)
         if self._set_ip_cb:
             if self._set_ip_cb(dst_ip):
                 self.set_status(f'Peer IP set to {dst_ip}')
             else:
                 self.set_status(f'Failed to set Peer IP')
-        else: messagebox.showerror('오류', 'IP 설정 콜백이 설정되지 않았습니다.')
+        else:
+            messagebox.showerror('오류', 'IP 설정 콜백이 설정되지 않았습니다.')
+            return
+
+        # 2. [추가됨] ARP를 통해 MAC 주소 자동 찾기 시도
+        if self.arp:
+            self.set_status(f'Resolving MAC for {dst_ip}...')
+            # GUI 멈춤 방지를 위해 별도 스레드에서 수행
+            t = threading.Thread(target=self._perform_arp_resolution, args=(dst_ip,))
+            t.daemon = True
+            t.start()
+
+    def _perform_arp_resolution(self, ip_str):
+        """백그라운드에서 ARP 요청을 보내고 응답을 기다림"""
+        try:
+            # IP 문자열 -> bytes 변환
+            ip_parts = ip_str.split('.')
+            ip_bytes = bytes(int(p) for p in ip_parts)
+
+            # 1. ARP 요청 전송 (lookup은 캐시에 없으면 요청을 보냄)
+            # 이미 캐시에 있다면 즉시 리턴되지만, 없다면 None 리턴 후 내부적으로 Request 전송
+            cached_mac = self.arp.lookup(ip_bytes)
+
+            if cached_mac:
+                # 이미 캐시에 있는 경우 즉시 업데이트
+                self._update_peer_mac_gui(cached_mac)
+                return
+
+            # 2. 응답 대기 (Polling): 최대 2초간 대기 (0.2초 * 10회)
+            for _ in range(10):
+                time.sleep(0.2)
+                # ARPLayer의 테이블 확인
+                if ip_bytes in self.arp.arp_table:
+                    found_mac = self.arp.arp_table[ip_bytes]
+                    self._update_peer_mac_gui(found_mac)
+                    return
+
+            # 3. 실패 시 메시지
+            self.root.after(0, lambda: self.set_status(f"ARP Failed: No response from {ip_str}"))
+
+        except Exception as e:
+            print(f"[GUI] ARP Resolution Error: {e}")
+
+    def _update_peer_mac_gui(self, mac_bytes):
+        """찾아낸 MAC 주소를 GUI에 반영하고 연결 설정"""
+        mac_str = ':'.join(f'{b:02x}' for b in mac_bytes)
+
+        def _gui_update():
+            # 1. MAC 입력칸 채우기
+            self._peer_mac_var.set(mac_str)
+            # 2. 상태바 업데이트
+            self.set_status(f"ARP Resolved: {mac_str}")
+            # 3. 자동으로 'Set MAC' 버튼 누른 효과 (연결 확정)
+            self._on_set_mac()
+
+        self.root.after(0, _gui_update)
 
     def _on_send(self, event=None):
         msg = self._msg_var.get().strip()
