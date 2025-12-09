@@ -34,7 +34,7 @@ class EthernetLayer(BaseLayer):
         src = data[6:12]
         et = data[12:14]
 
-        # [수정] 0xFFFF(채팅) 외에 0x0806(ARP)도 허용
+        # ARP(0x0806)와 IP/Chat(0xFFFF) 모두 허용
         if et != b'\xFF\xFF' and et != b'\x08\x06':
             return False
 
@@ -42,12 +42,9 @@ class EthernetLayer(BaseLayer):
         if not (dst == bcast or dst == bytes(self.src_mac)):
             return False
 
-        # [수정] ARP 패킷은 0x00을 제거하면 안 됨 (IP 주소 끝자리가 0일 수 있음)
-        # 채팅 패킷(0xFFFF)만 패딩 제거 수행
-        if et == b'\x08\x06':
-            payload = data[14:]
-        else:
-            payload = data[14:].rstrip(b'\x00')
+        # [수정] rstrip(b'\x00')을 삭제하여 바이너리 데이터 손상 방지
+        # 뒤에 붙은 패딩(0x00)은 상위 계층(IPLayer)에서 길이 정보를 보고 잘라내야 함
+        payload = data[14:]
 
         if not payload:
             return False

@@ -65,9 +65,6 @@ class IPLayer(BaseLayer):
             self.lower.send(header + chunk)
             offset += chunk_size
 
-            # 동영상 파일 전송 시 시간이 꽤 걸릴 것입니다.
-            time.sleep(0.005)
-
         print(f"[IP] Finish Sending ID: {pkt_id}")
         return True
 
@@ -77,12 +74,16 @@ class IPLayer(BaseLayer):
 
         header = data[:20]
         try:
+            # 헤더 언패킹: 여기서 length 변수를 가져옵니다.
             src_ip, dst_ip, proto, pkt_id, offset, length, mf = struct.unpack('!4s4sBHIIB', header)
         except:
             return False
 
-        payload = data[20:]
+        # [수정 핵심] data[20:]으로 끝까지 다 읽는 게 아니라,
+        # 헤더에 명시된 length만큼만 읽어야 뒤에 붙은 이더넷 패딩을 제외할 수 있음
+        payload = data[20 : 20 + length]
 
+        # --- 아래는 기존 로직과 동일 ---
         if dst_ip != self.src_ip and dst_ip != self.IP_BROADCAST:
             return False
 
@@ -98,19 +99,17 @@ class IPLayer(BaseLayer):
 
         entry = self.rx_buffer[key]
 
-        # 중복 패킷 방지 (간단한 체크)
-        # 현재 오프셋이 이미 리스트에 있다면 스킵
-        # (완벽하진 않으나 기본적인 중복 수신 방지)
         for frag in entry['fragments']:
             if frag[0] == offset:
                 return True
 
+        # 이제 payload 길이가 정확하므로 received_len 계산이 정확해짐
         entry['fragments'].append((offset, payload))
         entry['received_len'] += len(payload)
 
         if mf == 0:
             entry['total_len'] = offset + len(payload)
-            print(f"[IP] Last Fragment Received for ID:{pkt_id}. Total Size should be: {entry['total_len']}")
+            print(f"[IP] Last Fragment ID:{pkt_id}. Total: {entry['total_len']}")
 
         # [디버깅] 진행 상황 출력 (10번째 패킷마다)
         if len(entry['fragments']) % 10 == 0:
@@ -119,17 +118,13 @@ class IPLayer(BaseLayer):
 
         # 재조립 완료 조건 검사
         if entry['total_len'] is not None and entry['received_len'] == entry['total_len']:
-            print(f"[IP] Reassembly Complete! ID:{pkt_id}. Calling Upper Protocol: {proto}")
+            print(f"[IP] Reassembly Complete! ID:{pkt_id}")
 
             entry['fragments'].sort(key=lambda x: x[0])
             reassembled_data = b''.join(f[1] for f in entry['fragments'])
             del self.rx_buffer[key]
 
-            # 상위 계층 전달
             if proto in self.upper_protocols:
                 return self.upper_protocols[proto].recv(reassembled_data)
-            else:
-                print(f"[IP] Error: No layer registered for protocol ID {proto}")
-                print(f"     Registered protocols: {list(self.upper_protocols.keys())}")
 
         return True
