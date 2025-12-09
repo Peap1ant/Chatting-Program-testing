@@ -10,8 +10,7 @@ class IPLayer(BaseLayer):
 
     IP_BROADCAST = b'\xFF\xFF\xFF\xFF'
 
-    # MTU: 1024로 유지 (안전값)
-    MTU = 1450
+    MTU = 1480
     IP_HEADER_SIZE = 20
 
     def __init__(self):
@@ -64,6 +63,7 @@ class IPLayer(BaseLayer):
 
             self.lower.send(header + chunk)
             offset += chunk_size
+            time.sleep(0.0002)
 
         print(f"[IP] Finish Sending ID: {pkt_id}")
         return True
